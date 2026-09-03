@@ -1,0 +1,13 @@
+{
+  "name": "wrapper",
+  "private": true,
+  "version": "0.1.0",
+  "main": "lib/sessionOwner.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "node-pty": "^1.1.0",
+    "ws": "^8.18.0"
+  }
+}

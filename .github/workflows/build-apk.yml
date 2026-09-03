@@ -1,0 +1,48 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - 'app/**'
+      - '.github/workflows/build-apk.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Installa dipendenze
+        run: npm install
+
+      - name: Genera progetto Android nativo
+        run: npx expo prebuild --platform android --non-interactive
+
+      - name: Rendi eseguibile gradlew
+        run: chmod +x android/gradlew
+
+      - name: Build APK (debug, non richiede firma)
+        working-directory: app/android
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Carica APK come artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sofajob-apk
+          path: app/android/app/build/outputs/apk/debug/*.apk

@@ -1,0 +1,403 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css" />
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+<style>
+  html, body { margin: 0; padding: 0; height: 100%; background: #1e1e1e; color: #eee; font-family: system-ui, sans-serif; }
+  #app { height: 100%; display: flex; flex-direction: column; }
+  #list { padding: 12px; overflow-y: auto; }
+  h2 { font-size: 13px; color: #888; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin: 16px 0 8px; }
+  #relayInfo { background: #2a2a2a; border-radius: 8px; padding: 10px 12px; font-size: 12px; color: #ccc; }
+  #relayInfo b { color: #4caf50; }
+  #newSessionForm { background: #2a2a2a; border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  #newSessionForm input, #newSessionForm select {
+    background: #1e1e1e; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 8px; font-size: 13px;
+  }
+  #newSessionForm button { background: #4caf50; color: #fff; border: none; border-radius: 6px; padding: 10px; font-weight: 600; cursor: pointer; }
+  #newSessionForm button:hover { background: #43a047; }
+  .session { background: #2a2a2a; border-radius: 8px; padding: 12px; margin-bottom: 8px; cursor: pointer; }
+  .session:hover { background: #333; }
+  .session .cwd { font-size: 13px; word-break: break-all; }
+  .session .meta { font-size: 11px; color: #888; margin-top: 4px; display: flex; justify-content: space-between; }
+  .session-row { display: flex; align-items: center; gap: 6px; }
+  .session-name { flex: 1; }
+  .renameBtn { background: none; border: none; color: #777; cursor: pointer; font-size: 13px; padding: 2px 4px; }
+  .renameBtn:hover { color: #ccc; }
+  .renameInput { flex: 1; background: #1e1e1e; color: #eee; border: 1px solid #4caf50; border-radius: 4px; padding: 4px 6px; font-size: 13px; }
+  .renameSave { background: #4caf50; color: #fff; border: none; border-radius: 4px; padding: 4px 8px; font-size: 12px; cursor: pointer; }
+  .session .status { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+  .status.running { background: #4caf50; }
+  .status.exited { background: #777; }
+  #refresh {
+    background: #333; color: #ccc; border: none; border-radius: 6px; cursor: pointer;
+    width: 100%; padding: 10px 12px; margin: 10px 0 20px; font-size: 13px;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  #refresh:hover { background: #3a3a3a; color: #fff; }
+  #term-view { display: none; flex: 1; flex-direction: column; min-width: 0; }
+  #terminal { flex: 1; overflow: hidden; padding: 4px; min-width: 0; }
+  #terminal .xterm { height: 100%; }
+  #controls { background: #252525; padding: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+  #controls button { flex: 1; min-width: 40px; background: #3a3a3a; color: #eee; border: none; border-radius: 6px; padding: 10px 0; font-size: 16px; cursor: pointer; }
+  #inputRow { display: flex; padding: 6px; background: #252525; gap: 6px; }
+  #freeText { flex: 1; background: #1e1e1e; color: #eee; border: 1px solid #444; border-radius: 6px; padding: 8px; }
+  #sendBtn, #backBtn { background: #3a3a3a; color: #eee; border: none; border-radius: 6px; padding: 8px 12px; cursor: pointer; }
+  .error { color: #e57373; font-size: 12px; }
+  .alias-pill { display: inline-block; background: #333; color: #9cdcfe; border-radius: 12px; padding: 4px 10px; font-size: 12px; margin: 0 6px 6px 0; font-family: monospace; }
+  details.accordion { background: #2a2a2a; border-radius: 8px; margin-bottom: 10px; overflow: hidden; }
+  details.accordion summary { padding: 10px 12px; cursor: pointer; font-size: 13px; color: #ccc; font-weight: 600; list-style: none; user-select: none; }
+  details.accordion summary::-webkit-details-marker { display: none; }
+  details.accordion summary::before { content: '▸ '; color: #4caf50; }
+  details.accordion[open] summary::before { content: '▾ '; }
+  details.accordion[open] summary { border-bottom: 1px solid #3a3a3a; }
+  .accordion-body { padding: 12px; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="list">
+    <div id="relayInfo">caricamento...</div>
+
+    <h2>Sessioni attive</h2>
+    <div id="sessions"></div>
+    <button id="refresh">⟳ Aggiorna</button>
+
+    <details class="accordion">
+      <summary>Nuova sessione</summary>
+      <div class="accordion-body">
+        <div id="newSessionForm">
+          <select id="cmdSelect">
+            <option value="claude">claude</option>
+            <option value="powershell.exe">powershell.exe</option>
+            <option value="cmd.exe">cmd.exe</option>
+            <option value="bash">bash</option>
+            <option value="__custom__">altro comando...</option>
+          </select>
+          <input id="customCmd" type="text" placeholder="comando personalizzato" style="display:none" />
+          <input id="cwdInput" type="text" placeholder="cartella di lavoro (vuoto = home)" />
+          <input id="labelInput" type="text" placeholder="etichetta (opzionale)" />
+          <button id="launchBtn">Avvia sessione</button>
+          <div id="launchError" class="error"></div>
+        </div>
+      </div>
+    </details>
+
+    <details class="accordion">
+      <summary>Alias terminale</summary>
+      <div class="accordion-body">
+        <div id="aliasInfo" style="font-size:11px;color:#888;margin-bottom:8px;">
+          Digitando il nome dell'alias in una shell supportata, il comando parte
+          tramite il wrapper ed è automaticamente visibile da mobile.
+        </div>
+        <div id="shellStatusList" style="font-size:11px;color:#888;margin-bottom:10px;"></div>
+        <div id="aliasList"></div>
+        <div id="newAliasForm" style="display:flex;flex-direction:column;gap:8px;margin-top:8px;">
+          <input id="aliasNameInput" type="text" placeholder="es. claude" style="background:#1e1e1e;color:#eee;border:1px solid #444;border-radius:6px;padding:8px;" />
+          <div id="shellCheckboxes" style="display:flex;gap:14px;font-size:12px;color:#ccc;"></div>
+          <button id="addAliasBtn" style="background:#4caf50;color:#fff;border:none;border-radius:6px;padding:8px 12px;cursor:pointer;">Crea</button>
+        </div>
+        <div id="aliasError" class="error"></div>
+      </div>
+    </details>
+  </div>
+
+  <div id="term-view">
+    <div id="terminal"></div>
+    <div id="controls">
+      <button data-key="up">&uarr;</button>
+      <button data-key="down">&darr;</button>
+      <button data-key="left">&larr;</button>
+      <button data-key="right">&rarr;</button>
+      <button data-key="enter">Invio</button>
+      <button data-key="esc">Esc</button>
+      <button data-key="space">Spazio</button>
+    </div>
+    <div id="inputRow">
+      <button id="backBtn">&lt; Lista</button>
+      <input id="freeText" type="text" placeholder="scrivi un comando..." />
+      <button id="sendBtn">Invia</button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  let relayPort = 4455;
+  let ws = null;
+  let term = null;
+  let fitAddon = null;
+
+  function sendResize() {
+    if (term && ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'resize', cols: term.cols, rows: term.rows }));
+    }
+  }
+
+  window.addEventListener('resize', () => {
+    if (fitAddon && document.getElementById('term-view').style.display !== 'none') {
+      fitAddon.fit();
+      sendResize();
+    }
+  });
+
+  // Le sequenze ANSI si costruiscono con String.fromCharCode(27), non con un
+  // literal contenente il byte ESC scritto a mano: evita ambiguita' di encoding.
+  var ESC = String.fromCharCode(27);
+  var SEQ = {
+    up: ESC + '[A',
+    down: ESC + '[B',
+    left: ESC + '[D',
+    right: ESC + '[C',
+    enter: '\r',
+    esc: ESC,
+    space: ' '
+  };
+
+  function host() {
+    return 'localhost:' + relayPort;
+  }
+
+  async function init() {
+    const info = await window.dashboardAPI.getRelayInfo();
+    relayPort = info.port;
+    document.getElementById('relayInfo').innerHTML =
+      "Da telefono, sulla stessa wifi, apri l'app e inserisci:<br/><b>" + info.lanIp + ':' + info.port + '</b>';
+    loadSessions();
+    loadAliases();
+  }
+
+  let shells = [];
+
+  async function loadAliases() {
+    shells = await window.dashboardAPI.shellStatus();
+    const aliases = await window.dashboardAPI.listAliases();
+
+    document.getElementById('shellStatusList').innerHTML = shells
+      .map((s) => (s.exists ? '✓' : '✗') + ' ' + s.label)
+      .join(' &nbsp;·&nbsp; ');
+
+    const names = Object.keys(aliases);
+    const listEl = document.getElementById('aliasList');
+    listEl.innerHTML = names.length
+      ? names
+          .map((name) => {
+            const tags = shells
+              .map((s) => {
+                const on = !!aliases[name][s.id];
+                return (
+                  '<span class="alias-pill" style="' +
+                  (on ? '' : 'opacity:0.35;') +
+                  '">' + name + ' · ' + s.label + '</span>'
+                );
+              })
+              .join('');
+            return tags;
+          })
+          .join('')
+      : '<div style="font-size:12px;color:#666;">Nessun alias configurato</div>';
+
+    const checkboxEl = document.getElementById('shellCheckboxes');
+    checkboxEl.innerHTML = shells
+      .map(
+        (s) =>
+          '<label><input type="checkbox" class="shellCheckbox" value="' +
+          s.id +
+          '" checked /> ' +
+          s.label +
+          '</label>'
+      )
+      .join('');
+  }
+
+  function loadSessions() {
+    fetch('http://' + host() + '/sessions')
+      .then((r) => r.json())
+      .then(renderSessions)
+      .catch((err) => {
+        document.getElementById('sessions').innerHTML =
+          '<div class="session error">Errore relay: ' + err.message + '</div>';
+      });
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function getStoredNames() {
+    try { return JSON.parse(localStorage.getItem('sofajob-names') || '{}'); } catch { return {}; }
+  }
+
+  function setStoredName(id, name) {
+    const names = getStoredNames();
+    if (name) names[id] = name; else delete names[id];
+    localStorage.setItem('sofajob-names', JSON.stringify(names));
+  }
+
+  function renderSessions(sessions) {
+    const el = document.getElementById('sessions');
+    if (!sessions.length) {
+      el.innerHTML = '<div class="session">Nessuna sessione attiva</div>';
+      return;
+    }
+    const names = getStoredNames();
+    el.innerHTML = sessions
+      .map((s) => {
+        const displayName = names[s.id] || s.label || s.id.slice(0, 8);
+        return (
+          '<div class="session" data-id="' + s.id + '">' +
+          '<div class="session-row">' +
+          '<span class="status ' + s.status + '"></span>' +
+          '<span class="session-name">' + escapeHtml(displayName) + '</span>' +
+          '<button class="renameBtn" data-id="' + s.id + '" data-name="' + escapeHtml(displayName) + '">✎</button>' +
+          '</div>' +
+          '<div class="cwd">' + s.cwd + '</div>' +
+          '<div class="meta"><span>avviata ' + new Date(s.startedAt).toLocaleTimeString() + '</span>' +
+          '<span>' + s.viewerCount + ' dispositivo/i collegato/i</span></div>' +
+          '</div>'
+        );
+      })
+      .join('');
+
+    [...el.querySelectorAll('.session[data-id]')].forEach((node) => {
+      node.addEventListener('click', (ev) => {
+        if (ev.target.closest('.renameBtn') || ev.target.closest('.renameInput') || ev.target.closest('.renameSave')) return;
+        openSession(node.dataset.id);
+      });
+    });
+
+    [...el.querySelectorAll('.renameBtn')].forEach((btn) => {
+      btn.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        const id = btn.dataset.id;
+        const row = btn.closest('.session-row');
+        const current = btn.dataset.name;
+        row.innerHTML =
+          '<input class="renameInput" type="text" value="' + escapeHtml(current) + '" />' +
+          '<button class="renameSave">OK</button>';
+        const input = row.querySelector('.renameInput');
+        input.focus();
+        input.select();
+        const save = () => {
+          setStoredName(id, input.value.trim());
+          loadSessions();
+        };
+        row.querySelector('.renameSave').addEventListener('click', (e) => { e.stopPropagation(); save(); });
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+      });
+    });
+  }
+
+  function openSession(id) {
+    document.getElementById('list').style.display = 'none';
+    const view = document.getElementById('term-view');
+    view.style.display = 'flex';
+
+    if (term) term.dispose();
+    term = new Terminal({ convertEol: true, fontSize: 13, theme: { background: '#1e1e1e' } });
+    fitAddon = new FitAddon.FitAddon();
+    term.loadAddon(fitAddon);
+    term.open(document.getElementById('terminal'));
+    requestAnimationFrame(() => { fitAddon.fit(); sendResize(); });
+
+    ws = new WebSocket('ws://' + host() + '/ws?role=viewer&sessionId=' + id);
+    ws.onopen = () => sendResize();
+    ws.onmessage = (ev) => {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === 'data') term.write(msg.chunk);
+      else if (msg.type === 'exited') term.write('\r\n[sessione terminata]\r\n');
+      else if (msg.type === 'error') term.write('\r\n[errore: ' + msg.message + ']\r\n');
+    };
+    ws.onerror = () => term.write('\r\n[errore di connessione al relay]\r\n');
+  }
+
+  function sendInput(data) {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(JSON.stringify({ type: 'input', data }));
+    }
+  }
+
+  document.getElementById('refresh').addEventListener('click', loadSessions);
+
+  document.getElementById('backBtn').addEventListener('click', () => {
+    if (ws) ws.close();
+    document.getElementById('term-view').style.display = 'none';
+    document.getElementById('list').style.display = 'block';
+    loadSessions();
+  });
+
+  [...document.querySelectorAll('#controls button')].forEach((btn) => {
+    btn.addEventListener('click', () => sendInput(SEQ[btn.dataset.key]));
+  });
+
+  document.getElementById('sendBtn').addEventListener('click', () => {
+    const field = document.getElementById('freeText');
+    if (field.value) {
+      sendInput(field.value + '\r');
+      field.value = '';
+    }
+  });
+  document.getElementById('freeText').addEventListener('keydown', (ev) => {
+    if (ev.key === 'Enter') document.getElementById('sendBtn').click();
+  });
+
+  document.getElementById('cmdSelect').addEventListener('change', (ev) => {
+    document.getElementById('customCmd').style.display = ev.target.value === '__custom__' ? 'block' : 'none';
+  });
+
+  document.getElementById('launchBtn').addEventListener('click', async () => {
+    const select = document.getElementById('cmdSelect');
+    const cmd = select.value === '__custom__' ? document.getElementById('customCmd').value.trim() : select.value;
+    const cwd = document.getElementById('cwdInput').value.trim();
+    const label = document.getElementById('labelInput').value.trim();
+    const errEl = document.getElementById('launchError');
+    errEl.textContent = '';
+
+    if (!cmd) {
+      errEl.textContent = 'Specifica un comando';
+      return;
+    }
+
+    const result = await window.dashboardAPI.launchSession({ cmd, cwd: cwd || undefined, label });
+    if (!result.ok) {
+      errEl.textContent = 'Errore: ' + result.error;
+      return;
+    }
+    loadSessions();
+    openSession(result.id);
+  });
+
+  document.getElementById('addAliasBtn').addEventListener('click', async () => {
+    const input = document.getElementById('aliasNameInput');
+    const errEl = document.getElementById('aliasError');
+    errEl.textContent = '';
+    const name = input.value.trim();
+    if (!name) {
+      errEl.textContent = 'Specifica un nome';
+      return;
+    }
+    const selectedShells = [...document.querySelectorAll('.shellCheckbox:checked')].map((cb) => cb.value);
+    if (!selectedShells.length) {
+      errEl.textContent = 'Seleziona almeno una shell';
+      return;
+    }
+    const result = await window.dashboardAPI.addAlias(name, selectedShells);
+    if (!result.ok) {
+      errEl.textContent = 'Errore: ' + result.error;
+      return;
+    }
+    const failures = Object.entries(result.perShell || {}).filter(([, r]) => !r.ok);
+    if (failures.length) {
+      errEl.textContent = failures.map(([id, r]) => id + ': ' + r.error).join(' — ');
+    }
+    input.value = '';
+    loadAliases();
+  });
+
+  init();
+</script>
+</body>
+</html>

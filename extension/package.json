@@ -1,0 +1,43 @@
+{
+  "name": "sofajob-terminal",
+  "displayName": "sofaJob — terminale visibile da mobile",
+  "description": "Aggiunge un profilo terminale che registra la sessione sul relay sofaJob, visibile e controllabile da telefono/dashboard.",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": ["Other"],
+  "main": "./extension.js",
+  "activationEvents": [
+    "onTerminalProfile:sofajob.session"
+  ],
+  "contributes": {
+    "terminal": {
+      "profiles": [
+        {
+          "id": "sofajob.session",
+          "title": "sofaJob (visibile da mobile)"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "sofaJob",
+      "properties": {
+        "sofajob.shell": {
+          "type": "string",
+          "default": "powershell.exe",
+          "description": "Shell da avviare nel profilo terminale sofaJob."
+        },
+        "sofajob.relayUrl": {
+          "type": "string",
+          "default": "ws://localhost:4455/ws",
+          "description": "URL del relay sofaJob a cui registrare le sessioni."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "wrapper": "*"
+  }
+}

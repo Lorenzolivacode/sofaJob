@@ -1,0 +1,36 @@
+{
+  "name": "dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "description": "sofaJob dashboard — relay + launcher sessioni",
+  "author": "sofaJob",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "dependencies": {
+    "relay": "*",
+    "wrapper": "*"
+  },
+  "devDependencies": {
+    "electron": "33.4.11",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.sofajob.dashboard",
+    "productName": "sofaJob",
+    "asar": false,
+    "npmRebuild": false,
+    "files": [
+      "**/*",
+      "!dist/**"
+    ],
+    "win": {
+      "target": "portable"
+    },
+    "directories": {
+      "output": "dist"
+    }
+  }
+}

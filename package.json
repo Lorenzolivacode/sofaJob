@@ -1,0 +1,16 @@
+{
+  "name": "sofajob",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "relay",
+    "wrapper",
+    "dashboard",
+    "extension"
+  ],
+  "scripts": {
+    "relay": "npm run start --workspace=relay",
+    "wrapper": "npm run start --workspace=wrapper",
+    "dashboard": "npm run start --workspace=dashboard"
+  }
+}
